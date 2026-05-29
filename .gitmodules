@@ -1,0 +1,9 @@
+[submodule "content"]
+	path = content
+	url = git@tms:TheMarginalStructure/ThresholdArchive.git
+[submodule "frontend"]
+	path = frontend
+	url = git@tms:TheMarginalStructure/ThresholdArchive-Frontend.git
+[submodule "backend"]
+	path = backend
+	url = git@tms:TheMarginalStructure/ThresholdArchive-Backend.git
