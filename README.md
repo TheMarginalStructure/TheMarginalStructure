@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="content/设定/素材/TheMarginalStructure-Logo.png" width="280" alt="The Marginal Structure">
+  <img src="https://github.com/TheMarginalStructure/ThresholdArchive/blob/main/%E8%AE%BE%E5%AE%9A/%E7%B4%A0%E6%9D%90/TheMarginalStructure-Logo.png" width="280" alt="The Marginal Structure">
 </p>
 
 # The Marginal Structure — 边际结构
