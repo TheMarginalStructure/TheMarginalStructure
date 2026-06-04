@@ -22,3 +22,6 @@ yarn-error.log*
 Thumbs.db
 
 # 子模块各自有 .gitignore，此文件仅覆盖工作区级
+frontend
+.gitignore
+backend
