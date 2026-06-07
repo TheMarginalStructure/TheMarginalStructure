@@ -34,16 +34,32 @@ function Write-Log {
 
 function Stop-PidTree {
     param([int]$Pid)
-    try { taskkill /F /T /PID $Pid 2>$null | Out-Null } catch { }
+    try {
+        $result = taskkill /F /T /PID $Pid 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "已终止进程树 PID=$Pid" "SUCCESS"
+        }
+    } catch { }
 }
 
 function Stop-Port {
     param([int]$Port)
     try {
-        netstat -ano 2>$null | Select-String ":$Port\s" | Select-String "LISTENING" | ForEach-Object {
-            $parts = ($_ -split '\s+')[-1]
-            if ($parts -match '^\d+$' -and $parts -ne '0') {
-                taskkill /F /T /PID $parts 2>$null | Out-Null
+        # 更健壮的正则：匹配指定端口且处于LISTENING状态的行
+        $lines = netstat -ano -p TCP 2>$null | Select-String ":$Port\s" | Select-String "LISTENING"
+        foreach ($line in $lines) {
+            $lineStr = $line.ToString().Trim()
+            $parts = $lineStr -split '\s+'
+            # netstat输出格式: 协议 本地地址 远程地址 状态 PID
+            # 例如: TCP 0.0.0.0:3001 0.0.0.0:0 LISTENING 12345
+            if ($parts.Count -ge 5) {
+                $pidStr = $parts[-1]
+                if ($pidStr -match '^\d+$' -and [int]$pidStr -ne 0) {
+                    try {
+                        taskkill /F /T /PID $pidStr 2>$null | Out-Null
+                        Write-Log "已终止端口 :$Port 上的进程 PID=$pidStr" "SUCCESS"
+                    } catch { }
+                }
             }
         }
     } catch { }
@@ -52,13 +68,17 @@ function Stop-Port {
 function Cleanup {
     if ($global:exiting) { return }
     $global:exiting = $true
-    Write-Host "`n"
+    Write-Host ""
     Write-Log "正在停止服务..." "WARNING"
 
     if ($global:backendPid) { Stop-PidTree -Pid $global:backendPid }
     if ($global:frontendPid) { Stop-PidTree -Pid $global:frontendPid }
     if ($global:studioPid) { Stop-PidTree -Pid $global:studioPid }
 
+    # 等待进程完全退出
+    Start-Sleep -Milliseconds 500
+
+    # 兜底：按端口杀残留进程
     Stop-Port -Port $BACKEND_PORT
     Stop-Port -Port $FRONTEND_PORT
     Stop-Port -Port $STUDIO_PORT
@@ -72,6 +92,15 @@ function Stop-All {
     Stop-Port -Port $STUDIO_PORT
     Write-Log "所有服务已停止" "SUCCESS"
 }
+
+# 注册 Ctrl+C 事件处理
+Register-ObjectEvent -InputObject ([Console]) -EventName CancelKeyPress -Action {
+    $global:exiting = $true
+    Write-Host ""
+    Write-Log "收到 Ctrl+C 信号" "WARNING"
+    Cleanup
+    [Environment]::Exit(0)
+} | Out-Null
 
 if ($StopOnly) {
     Stop-All
@@ -144,6 +173,7 @@ Write-Host ""
 try {
     while ($true) {
         Start-Sleep -Seconds 1
+        if ($global:exiting) { break }
         $backendAlive = !$backendProc.HasExited
         $frontendAlive = !$frontendProc.HasExited
         if (-not $backendAlive -and -not $frontendAlive) { break }
@@ -151,6 +181,8 @@ try {
         if (-not $frontendAlive) { Write-Log "前端进程已退出" "WARNING" }
     }
 } finally {
-    Cleanup
+    if (!$global:exiting) {
+        Cleanup
+    }
     [Environment]::Exit(0)
 }
